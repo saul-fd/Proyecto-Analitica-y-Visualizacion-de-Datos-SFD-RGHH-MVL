@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import os
+import base64
 from utils import cargar_datos
 
 # --- CONFIGURACION DE PAGINA ---
@@ -11,49 +12,59 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- ESTILOS CSS (Fuente Blanca) ---
+# --- ESTILOS CSS ---
+# Usamos Flexbox para centrar dinámicamente las tarjetas
 st.markdown("""
 <style>
-    /* Forzar el centrado de todo el contenido dentro de las columnas */
-    [data-testid="column"] {
+    /* Contenedor flexible que centra las tarjetas */
+    .metrics-container {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center; /* ESTO CENTRA LOS ELEMENTOS AL MEDIO */
+        gap: 20px; /* Espacio entre tarjetas */
+        margin-bottom: 20px;
+        padding: 10px;
+    }
+    
+    /* Tarjeta individual */
+    .metric-card {
         display: flex;
         flex-direction: column;
         align-items: center;
-        text-align: center;
         justify-content: flex-start;
-    }
-    
-    /* Ajuste para las metricas */
-    .metric-container {
-        width: 100%;
+        width: 100px; /* Ancho fijo para uniformidad */
         text-align: center;
-        margin-top: 5px;
+    }
+
+    /* Imagen */
+    .metric-img {
+        height: 50px;
+        width: auto;
+        object-fit: contain;
+        margin-bottom: 5px;
     }
     
-    /* AQUI ESTA EL CAMBIO DE COLOR */
+    /* Valores y Textos */
     .metric-value {
-        font-size: 22px;
+        font-size: 20px;
         font-weight: 800;
-        color: #ffffff; /* Blanco Puro */
+        color: #ffffff; /* BLANCO (Según tu petición previa) */
         line-height: 1.2;
     }
     .metric-label {
         font-size: 11px;
         font-weight: 700;
-        color: #e0e0e0; /* Gris muy claro para acompañar */
+        color: #e0e0e0; /* Gris claro */
         text-transform: uppercase;
         margin-top: 2px;
     }
     
-    /* Asegurar que las imagenes no se estiren y esten centradas */
-    div[data-testid="stImage"] {
-        display: flex;
-        justify-content: center;
-        width: 100%;
-    }
-    div[data-testid="stImage"] img {
-        object-fit: contain;
-        max-height: 60px;
+    /* Fallback circular si no hay imagen */
+    .circle-fallback {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        margin-bottom: 10px;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -94,65 +105,82 @@ def get_img_path(filename):
             return p
     return None
 
+def img_to_base64(path):
+    """Convierte imagen a string base64 para insertar en HTML"""
+    if not path or not os.path.exists(path):
+        return None
+    with open(path, "rb") as f:
+        data = f.read()
+    return base64.b64encode(data).decode()
+
 def normalizar_linea(texto):
-    """Normaliza nombres como 'Linea 1' a 'Línea 1' para coincidir con imagenes"""
     if not isinstance(texto, str): return str(texto)
     t = texto.strip().title()
     if "Linea" in t and "Línea" not in t:
         t = t.replace("Linea", "Línea")
     return t
 
-# --- RENDERIZADO HEADER ---
-def render_header(df):
+# --- RENDERIZADO HEADER (HTML PURO) ---
+def render_header_html(df):
     if df.empty: return
 
-    # Datos Generales
+    # Calculos
     dias = df["fecha"].nunique() or 1
     promedio_gral = df["afluencia"].sum() / dias
     
-    # Datos por Linea
     df_lineas = df.groupby("linea")["afluencia"].sum().reset_index()
     df_lineas["promedio"] = df_lineas["afluencia"] / dias
     df_lineas = df_lineas.sort_values("linea")
 
-    # Crear columnas (1 para Sistema + N para líneas)
-    cols = st.columns(len(df_lineas) + 1)
+    # Iniciar contenedor Flexbox
+    html_content = '<div class="metrics-container">'
 
-    # 1. Sistema Total
-    with cols[0]:
-        path = get_img_path("ícono-MB.png")
-        if path:
-            st.image(path, width=50)
-        else:
-            st.markdown("🚍")
-            
-        st.markdown(f"""
-        <div class="metric-container">
+    # 1. TARJETA SISTEMA (Logo MB)
+    path_mb = get_img_path("ícono-MB.png")
+    b64_mb = img_to_base64(path_mb)
+    
+    img_tag_sys = ""
+    if b64_mb:
+        img_tag_sys = f'<img src="data:image/png;base64,{b64_mb}" class="metric-img">'
+    else:
+        img_tag_sys = '<div style="font-size:30px;">🚍</div>'
+
+    html_content += f"""
+        <div class="metric-card">
+            {img_tag_sys}
             <div class="metric-value">{promedio_gral:,.0f}</div>
             <div class="metric-label">Sistema Total</div>
-        </div>""", unsafe_allow_html=True)
+        </div>
+    """
 
-    # 2. Iterar Líneas
-    for idx, row in df_lineas.iterrows():
-        nombre_norm = normalizar_linea(row["linea"])
+    # 2. TARJETAS POR LÍNEA
+    for _, row in df_lineas.iterrows():
+        nombre = normalizar_linea(row["linea"])
         valor = row["promedio"]
-        archivo = IMAGENES.get(nombre_norm, "ícono-MB.png")
+        
+        archivo = IMAGENES.get(nombre, "ícono-MB.png")
         path_img = get_img_path(archivo)
-        color = COLOR_MAP.get(nombre_norm, "#555")
+        b64_img = img_to_base64(path_img)
+        color = COLOR_MAP.get(nombre, "#555")
 
-        with cols[idx + 1]:
-            # Imagen
-            if path_img:
-                st.image(path_img, width=50)
-            else:
-                st.markdown(f'<div style="background:{color};width:40px;height:40px;border-radius:50%;margin-bottom:10px;"></div>', unsafe_allow_html=True)
+        img_tag = ""
+        if b64_img:
+            img_tag = f'<img src="data:image/png;base64,{b64_img}" class="metric-img">'
+        else:
+            img_tag = f'<div class="circle-fallback" style="background:{color};"></div>'
 
-            # Texto
-            st.markdown(f"""
-            <div class="metric-container">
-                <div class="metric-value">{valor:,.0f}</div>
-                <div class="metric-label">{nombre_norm.replace('Línea ', 'L')}</div>
-            </div>""", unsafe_allow_html=True)
+        html_content += f"""
+        <div class="metric-card">
+            {img_tag}
+            <div class="metric-value">{valor:,.0f}</div>
+            <div class="metric-label">{nombre.replace('Línea ', 'L')}</div>
+        </div>
+        """
+
+    html_content += '</div>'
+    
+    # Renderizar HTML en Streamlit
+    st.markdown(html_content, unsafe_allow_html=True)
 
 # --- APP PRINCIPAL ---
 def main():
@@ -164,37 +192,30 @@ def main():
         st.error(f"Error cargando datos: {e}")
         return
 
-    # Normalizacion de datos
     if 'linea' in df.columns:
         df['linea'] = df['linea'].apply(normalizar_linea)
 
-    # --- BARRA LATERAL: FILTROS ---
+    # --- SIDEBAR ---
     st.sidebar.header("Filtros")
-    
-    # 1. Filtro Fecha
     min_d, max_d = df["fecha"].min(), df["fecha"].max()
     ini = st.sidebar.date_input("Inicio", min_d)
     fin = st.sidebar.date_input("Fin", max_d)
-    
     st.sidebar.divider()
 
-    # 2. Filtro Línea (CHECKBOXES)
+    # CHECKBOXES DE LÍNEAS
     st.sidebar.subheader("Líneas a visualizar")
     lineas_disponibles = sorted(df["linea"].unique())
     seleccion_lineas = []
 
-    # Crear una casilla por cada línea
     for linea in lineas_disponibles:
-        # Checkbox activado por defecto (value=True)
         if st.sidebar.checkbox(linea, value=True, key=f"chk_{linea}"):
             seleccion_lineas.append(linea)
 
-    # Validar seleccion
     if not seleccion_lineas:
-        st.warning("⚠️ Por favor selecciona al menos una línea para visualizar los datos.")
+        st.warning("Selecciona al menos una línea.")
         return
 
-    # Aplicar Filtros (Fecha + Línea)
+    # APLICAR FILTROS
     mask = (
         (df["fecha"].dt.date >= ini) & 
         (df["fecha"].dt.date <= fin) & 
@@ -203,15 +224,15 @@ def main():
     df_f = df.loc[mask]
 
     if df_f.empty:
-        st.warning("Sin datos para los filtros seleccionados.")
+        st.warning("Sin datos.")
         return
 
-    # Header
+    # HEADER (Flexbox HTML)
     st.markdown("###")
-    render_header(df_f)
+    render_header_html(df_f)
     st.markdown("---")
 
-    # Gráficas
+    # GRÁFICAS
     c1, c2 = st.columns([2, 1])
 
     with c1:
@@ -223,8 +244,7 @@ def main():
         )
         fig1.update_layout(
             template="plotly_white", 
-            xaxis_title="", 
-            yaxis_title="Pasajeros", 
+            xaxis_title="", yaxis_title="Pasajeros",
             legend=dict(orientation="h", y=1.1, x=0.5, xanchor="center")
         )
         st.plotly_chart(fig1, use_container_width=True)
