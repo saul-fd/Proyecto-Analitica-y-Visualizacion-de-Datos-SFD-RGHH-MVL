@@ -1,159 +1,194 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-import os
 from utils import cargar_datos
 
-# --- CONFIGURACIÓN DE PÁGINA ---
+# --- CONFIGURACION DE PAGINA ---
 st.set_page_config(
-    page_title="Tablero Metrobús CDMX",
-    page_icon="🚌",
-    layout="wide"
+    page_title="Tablero Metrobus CDMX",
+    layout="wide",
+    initial_sidebar_state="expanded"
 )
 
-# --- CONFIGURACIÓN VISUAL ---
-COLOR_MAP = {
-    'Línea 1': '#B71C1C', # Rojo
-    'Línea 2': '#4A148C', # Morado
-    'Línea 3': '#558B2F', # Verde Oliva
-    'Línea 4': '#E65100', # Naranja
-    'Línea 5': '#0277BD', # Azul
-    'Línea 6': '#EC407A', # Rosa
-    'Línea 7': '#2E7D32', # Verde
-    'Emergente': '#616161' # Gris
-}
-
+# --- ESTILOS CSS (Sin Emojis, Estilo Corporativo) ---
 st.markdown("""
 <style>
-    /* Estilo para las métricas superiores */
-    .metric-container {
-        background-color: white;
-        padding: 10px;
-        border-radius: 8px;
-        border-top: 5px solid #ccc;
+    .metric-card {
+        background-color: #ffffff;
+        border-left: 5px solid #ccc;
+        border-radius: 5px;
+        padding: 15px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
         text-align: center;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        margin-bottom: 10px;
+    }
+    .metric-title {
+        font-size: 12px;
+        font-weight: bold;
+        color: #7f8c8d;
+        text-transform: uppercase;
+        margin-bottom: 5px;
     }
     .metric-value {
-        font-size: 18px;
-        font-weight: bold;
+        font-size: 22px;
+        font-weight: 800;
         color: #2c3e50;
     }
-    .metric-label {
-        font-size: 12px;
-        color: #7f8c8d;
-        margin-top: 4px;
+    .metric-sub {
+        font-size: 10px;
+        color: #95a5a6;
     }
 </style>
 """, unsafe_allow_html=True)
 
-# --- FUNCIÓN: GENERAR KPI POR LÍNEA ---
-def mostrar_resumen_lineas(df):
-    # 1. Cálculo del Promedio General (Sistema)
-    # Agrupamos por fecha primero para sumar todas las líneas por día
-    diario_sistema = df.groupby("fecha")["afluencia"].sum()
-    promedio_gral = diario_sistema.mean()
+# --- CONFIGURACION DE COLORES ---
+# Mapa base para lineas conocidas (se usara fallback para nuevas)
+COLOR_MAP = {
+    'Línea 1': '#B71C1C', 
+    'Línea 2': '#4A148C', 
+    'Línea 3': '#558B2F', 
+    'Línea 4': '#E65100', 
+    'Línea 5': '#0277BD', 
+    'Línea 6': '#EC407A', 
+    'Línea 7': '#2E7D32', 
+    'Emergente': '#616161'
+}
+
+# --- FUNCION: TARJETAS DE PROMEDIO (DINAMICO) ---
+def render_top_metrics(df_filtered):
+    """
+    Genera dinamicamente una tarjeta por cada linea presente en el dataframe
+    mas una tarjeta de resumen general.
+    """
+    # 1. Calculos Generales
+    total_dias = df_filtered["fecha"].nunique()
+    if total_dias == 0: total_dias = 1
     
-    # 2. Cálculo del Promedio por Línea
-    # Agrupamos por línea y fecha, luego promediamos los días
-    diario_linea = df.groupby(["linea", "fecha"])["afluencia"].sum().reset_index()
-    promedios_linea = diario_linea.groupby("linea")["afluencia"].mean()
+    suma_total = df_filtered["afluencia"].sum()
+    promedio_sistema = suma_total / total_dias
     
-    # Lista de líneas ordenadas
-    lineas = sorted(promedios_linea.index.tolist())
+    # 2. Calculos por Linea
+    # Agrupamos por Linea y sumamos toda su afluencia, luego dividimos por dias unicos
+    df_lineas = df_filtered.groupby("linea")["afluencia"].sum().reset_index()
+    df_lineas["promedio"] = df_lineas["afluencia"] / total_dias
+    df_lineas = df_lineas.sort_values("linea")
     
-    # Desplegar columnas: 1 para General + N para líneas
-    st.markdown("### 📊 Promedios Diarios de Afluencia")
-    cols = st.columns(len(lineas) + 1)
+    # 3. Renderizado
+    # Columnas: 1 (Sistema) + N (Lineas)
+    cols = st.columns(len(df_lineas) + 1)
     
-    # A) Tarjeta General
+    # A) Tarjeta Sistema
     with cols[0]:
         st.markdown(f"""
-        <div class="metric-container" style="border-top-color: #2c3e50;">
-            <div style="font-size: 20px;">🚍</div>
-            <div class="metric-value">{promedio_gral:,.0f}</div>
-            <div class="metric-label">Sistema Total</div>
+        <div class="metric-card" style="border-left-color: #2c3e50;">
+            <div class="metric-title">Sistema Total</div>
+            <div class="metric-value">{promedio_sistema:,.0f}</div>
+            <div class="metric-sub">Promedio Diario</div>
         </div>
         """, unsafe_allow_html=True)
         
-    # B) Tarjetas por Línea
-    for i, linea in enumerate(lineas):
-        val = promedios_linea[linea]
-        color = COLOR_MAP.get(linea, "#95a5a6")
-        numero = linea.replace("Línea ", "L")
+    # B) Tarjetas por Linea (Iterativo)
+    for idx, row in df_lineas.iterrows():
+        nombre_linea = row["linea"]
+        valor = row["promedio"]
         
-        with cols[i+1]:
+        # Obtener color o usar gris por defecto
+        color = COLOR_MAP.get(nombre_linea, "#95a5a6")
+        # Acortar nombre para UI (ej. "Linea 1" -> "L1")
+        nombre_corto = nombre_linea.replace("Línea ", "L").replace("Emergente", "E")
+        
+        # Ajustar indice + 1 porque el 0 es el Sistema
+        with cols[idx + 1]:
             st.markdown(f"""
-            <div class="metric-container" style="border-top-color: {color};">
-                <div style="color: {color}; font-weight:bold;">{numero}</div>
-                <div class="metric-value">{val:,.0f}</div>
-                <div class="metric-label">Promedio Diario</div>
+            <div class="metric-card" style="border-left-color: {color};">
+                <div class="metric-title" style="color:{color};">{nombre_corto}</div>
+                <div class="metric-value">{valor:,.0f}</div>
+                <div class="metric-sub">Pasajeros/Dia</div>
             </div>
             """, unsafe_allow_html=True)
+
+# --- MAIN ---
+def main():
+    st.title("Tablero General de Afluencia")
+    
+    try:
+        df = cargar_datos()
+    except Exception as e:
+        st.error(f"Error al cargar datos: {e}")
+        return
+
+    # --- SIDEBAR: FILTROS GLOBALES ---
+    st.sidebar.header("Filtros")
+    
+    # Filtro de Fechas
+    min_date = df["fecha"].min()
+    max_date = df["fecha"].max()
+    
+    start_date = st.sidebar.date_input("Fecha Inicio", min_date)
+    end_date = st.sidebar.date_input("Fecha Fin", max_date)
+    
+    # Aplicar Filtros
+    mask = (df["fecha"].dt.date >= start_date) & (df["fecha"].dt.date <= end_date)
+    df_filtered = df.loc[mask]
+
+    if df_filtered.empty:
+        st.warning("No hay datos para el rango de fechas seleccionado.")
+        return
+
+    # --- SECCION 1: METRICAS SUPERIORES (KPIs) ---
+    render_top_metrics(df_filtered)
     
     st.markdown("---")
 
-# --- CARGA DE DATOS ---
-df = cargar_datos()
+    # --- SECCION 2: GRAFICAS PRINCIPALES ---
+    col_izq, col_der = st.columns([2, 1])
 
-if df is not None:
-    # 1. MOSTRAR ENCABEZADO CON PROMEDIOS (Reemplaza al carrusel de imágenes)
-    mostrar_resumen_lineas(df)
-
-    st.subheader("📈 Evolución Temporal y Distribución")
-
-    # Preparar datos para las gráficas
-    # Agrupación diaria por línea para la gráfica de tiempo
-    df_chart = df.groupby(["fecha", "linea"])["afluencia"].sum().reset_index()
-    
-    # Asignar colores al DataFrame para que Plotly los use automáticamente
-    color_discrete_map = COLOR_MAP
-
-    # 2. DASHBOARD
-    col1, col2 = st.columns([3, 1])
-
-    with col1:
-        st.markdown("**Evolución de Afluencia por Línea** (Histórico)")
-        # Gráfica de Líneas (Soporta N elementos y muestra tiempo)
+    with col_izq:
+        st.subheader("Evolucion Temporal Comparativa")
+        # Grafico de Lineas Multiserie
+        # Agrupamos por fecha y linea
+        df_chart_time = df_filtered.groupby(["fecha", "linea"])["afluencia"].sum().reset_index()
+        
         fig_line = px.line(
-            df_chart, 
-            x="fecha", 
-            y="afluencia", 
+            df_chart_time,
+            x="fecha",
+            y="afluencia",
             color="linea",
-            color_discrete_map=color_discrete_map,
-            markers=False
+            color_discrete_map=COLOR_MAP,
+            title="Tendencia Diaria por Linea"
         )
         fig_line.update_layout(
             template="plotly_white",
             xaxis_title="Fecha",
-            yaxis_title="Usuarios Diarios",
-            legend_title="",
+            yaxis_title="Afluencia",
+            legend_title="Linea",
             hovermode="x unified",
-            height=450
+            height=400
         )
         st.plotly_chart(fig_line, use_container_width=True)
 
-    with col2:
-        st.markdown("**Distribución Total**")
-        # Gráfica de Pastel (Soporta N elementos para ver proporción)
-        df_pie = df.groupby("linea")["afluencia"].sum().reset_index()
+    with col_der:
+        st.subheader("Distribucion del Periodo")
+        # Grafico de Pastel (Donut)
+        df_pie = df_filtered.groupby("linea")["afluencia"].sum().reset_index()
         
         fig_pie = px.pie(
-            df_pie, 
-            values="afluencia", 
+            df_pie,
+            values="afluencia",
             names="linea",
             color="linea",
-            color_discrete_map=color_discrete_map,
-            hole=0.4
+            color_discrete_map=COLOR_MAP,
+            hole=0.4,
+            title="Participacion Total"
         )
         fig_pie.update_layout(
             template="plotly_white",
-            showlegend=False,
-            height=450,
-            margin=dict(l=20, r=20, t=20, b=20)
+            height=400,
+            showlegend=True,
+            legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5)
         )
-        fig_pie.update_traces(textposition='inside', textinfo='percent+label')
+        fig_pie.update_traces(textposition='inside', textinfo='percent')
         st.plotly_chart(fig_pie, use_container_width=True)
 
-else:
-    st.error("No se pudieron cargar los datos. Verifica `utils.py` y la carpeta `data/`.")
+if __name__ == "__main__":
+    main()
