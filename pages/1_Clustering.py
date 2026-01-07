@@ -167,4 +167,6 @@ def show_correlacion():
         
         st.markdown("#### Perfil de los Grupos")
         resumen = df_features.groupby("Cluster")[features_cols].mean()
-        st.dataframe(resumen.style.highlight_max(axis=0), use_container_width=True)
+        st.dataframe(resumen.style.highlight_max(axis=0), use_container_width=True)}
+
+show_correlación()
