@@ -154,7 +154,7 @@ def show_home():
         st.plotly_chart(fig2, use_container_width=True)
 
     st.markdown("---")
-    st.subheader("💳 Análisis por Tipo de Pago")
+    st.subheader("Análisis por Tipo de Pago")
     if "tipo_pago" in df_f.columns:
         cp1, cp2 = st.columns(2)
         with cp1:
