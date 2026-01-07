@@ -24,7 +24,7 @@ def show_correlacion():
     # ==============================================================================
     # 1. ANALISIS DE CORRELACION (PEARSON)
     # ==============================================================================
-    st.header("1. Matriz de Correlacion")
+    st.header("Matriz de Correlacion")
     st.markdown("Analisis de la relacion lineal entre las diferentes lineas.")
 
     # Pivoteamos: Filas=Fechas, Columnas=Lineas
@@ -68,7 +68,7 @@ def show_correlacion():
     # ==============================================================================
     # 2. PCA CON CLUSTERING (SEGMENTACION)
     # ==============================================================================
-    st.header("2. Segmentacion de Lineas (PCA + K-Means)")
+    st.header("Segmentacion de Lineas (PCA + K-Means)")
     st.markdown("""
     Agrupamiento de lineas basado en sus caracteristicas estadisticas (Promedio, Desviacion, Totales).
     Se utiliza PCA para visualizar los grupos en 2 dimensiones.
