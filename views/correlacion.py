@@ -8,14 +8,9 @@ from sklearn.metrics import silhouette_score
 from utils import cargar_datos
 
 def show_correlacion():
-    # Estilos CSS
-    st.markdown("""
-    <style>
-        .stMetric { background-color: #f0f2f6; padding: 10px; border-radius: 5px; }
-    </style>
-    """, unsafe_allow_html=True)
+    # --- SE ELIMINÓ EL BLOQUE DE ESTILOS CSS QUE CAUSABA EL FONDO BLANCO ---
 
-    st.title("Correlacion y Segmentacion (PCA + Clustering)")
+    st.title("Correlacion y Agrupamiento")
     st.markdown("""
     Este modulo analiza la relacion entre lineas y las agrupa segun su comportamiento estadistico.
     """)
