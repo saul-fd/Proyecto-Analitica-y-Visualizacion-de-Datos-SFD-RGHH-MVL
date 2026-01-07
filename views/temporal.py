@@ -14,6 +14,7 @@ def show_temporal():
             border-left: 5px solid #2980b9;
             padding: 15px;
             border-radius: 5px;
+            margin-top: 10px;
         }
     </style>
     """, unsafe_allow_html=True)
@@ -21,8 +22,6 @@ def show_temporal():
     st.title("Analisis Espectral (Transformada de Fourier)")
     st.markdown("""
     Este modulo descompone la serie de tiempo para encontrar **patrones ciclicos repetitivos**.
-    
-    * **Picos altos:** Indican la fuerza de un ciclo (ej. semanal, mensual).
     """)
 
     try:
@@ -42,7 +41,7 @@ def show_temporal():
     else:
         df_serie = df[df["linea"] == seleccion].groupby("fecha")["afluencia"].sum().reset_index()
 
-    # Asegurar frecuencia diaria (rellenar huecos para que Fourier funcione bien)
+    # Asegurar frecuencia diaria (rellenar huecos)
     df_serie = df_serie.set_index("fecha").asfreq("D").fillna(method="ffill").reset_index()
 
     # --- 1. VISUALIZACIÓN DE LA SEÑAL ---
@@ -53,13 +52,13 @@ def show_temporal():
     st.divider()
 
     # --- 2. CÁLCULO DE FOURIER (FFT) ---
-    st.subheader("2. Espectrograma de Frecuencias")
+    st.subheader("2. Grafica de Amplitud Espectral")
     
     # Obtener valores de la señal
     y = df_serie["afluencia"].values
     n = len(y)
     
-    # Restar la media para eliminar el componente DC (frecuencia 0)
+    # Restar la media para eliminar el componente DC
     y_detrend = y - np.mean(y)
     
     # Aplicar FFT
@@ -84,34 +83,22 @@ def show_temporal():
         df_fft, 
         x="Periodo (Dias)", 
         y="Potencia", 
-        title="Intensidad de los Ciclos (Dominio del Tiempo)",
-        labels={"Potencia": "Fuerza del Ciclo", "Periodo (Dias)": "Duracion del Ciclo (Dias)"}
+        title="Amplitud Espectral (Fuerza de los Ciclos)",
+        labels={"Potencia": "Amplitud", "Periodo (Dias)": "Periodo del Ciclo (Dias)"}
     )
     # Ajustamos el eje X para ver mejor los ciclos cortos (semanales)
     fig_fft.update_layout(xaxis_range=[0, 35]) 
     st.plotly_chart(fig_fft, use_container_width=True)
 
-    # --- 3. INTERPRETACIÓN AUTOMÁTICA ---
-    # Encontrar el ciclo dominante (Pico máximo)
+    # --- 3. RESULTADO PRINCIPAL ---
     if not df_fft.empty:
         idx_max = df_fft["Potencia"].idxmax()
         ciclo_top = df_fft.loc[idx_max, "Periodo (Dias)"]
         
-        col1, col2 = st.columns([1, 2])
-        with col1:
-            st.markdown('<div class="metric-box">', unsafe_allow_html=True)
-            st.metric("Ciclo Principal Detectado", f"Cada {ciclo_top:.1f} Dias")
-            st.caption("Este es el patron mas fuerte en tus datos.")
-            st.markdown('</div>', unsafe_allow_html=True)
-            
-        with col2:
-            st.info(f"""
-            **Interpretacion del Analisis:**
-            
-            * El analisis matematico indica que el comportamiento de la afluencia se repite con mayor fuerza cada **{ciclo_top:.1f} dias**.
-            * **Si es ~7.0 dias:** Confirma el patron semanal (Lunes-Viernes vs Fin de Semana).
-            * **Si es ~3.5 dias:** Indica patrones intra-semanales (picos a mitad de semana).
-            * **Si es ~14 o 30 dias:** Indica patrones quincenales o mensuales.
-            """)
+        # Solo mostramos el dato detectado
+        st.markdown('<div class="metric-box">', unsafe_allow_html=True)
+        st.metric("Ciclo Principal Detectado", f"Cada {ciclo_top:.1f} Dias")
+        st.markdown('</div>', unsafe_allow_html=True)
+
     else:
         st.warning("No se encontraron ciclos claros con suficiente potencia.")
