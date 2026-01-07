@@ -45,7 +45,6 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # --- CONFIGURACION DE RECURSOS ---
-# Diccionario de imagenes (Nombre Linea -> Archivo)
 IMAGENES = {
     "Línea 1": "MB-1.png",
     "Línea 2": "MB-2.png",
@@ -54,7 +53,7 @@ IMAGENES = {
     "Línea 5": "MB-5.png",
     "Línea 6": "MB-6.png",
     "Línea 7": "MB-7.png",
-    "Emergente": "ícono-MB.png" # Fallback si no hay imagen especifica
+    "Emergente": "ícono-MB.png"
 }
 
 COLOR_MAP = {
@@ -153,7 +152,7 @@ def main():
     start = st.sidebar.date_input("Inicio", min_date)
     end = st.sidebar.date_input("Fin", max_date)
     
-    # Aplicar filtro
+    # Aplicar filtro de fecha
     mask = (df["fecha"].dt.date >= start) & (df["fecha"].dt.date <= end)
     df_filtered = df.loc[mask]
 
