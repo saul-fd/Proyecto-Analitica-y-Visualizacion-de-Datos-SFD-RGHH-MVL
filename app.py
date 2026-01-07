@@ -166,17 +166,39 @@ def main():
     if 'linea' in df.columns:
         df['linea'] = df['linea'].apply(normalizar_linea)
 
-    # Filtros
+    # --- BARRA LATERAL: FILTROS ---
     st.sidebar.header("Filtros")
+    
+    # 1. Filtro Fecha
     min_d, max_d = df["fecha"].min(), df["fecha"].max()
     ini = st.sidebar.date_input("Inicio", min_d)
     fin = st.sidebar.date_input("Fin", max_d)
+    
+    st.sidebar.divider()
 
-    mask = (df["fecha"].dt.date >= ini) & (df["fecha"].dt.date <= fin)
+    # 2. Filtro Línea (Multiselect)
+    lineas_disponibles = sorted(df["linea"].unique())
+    seleccion_lineas = st.sidebar.multiselect(
+        "Filtrar Líneas",
+        options=lineas_disponibles,
+        default=lineas_disponibles # Todas seleccionadas al inicio
+    )
+
+    # Validar seleccion
+    if not seleccion_lineas:
+        st.warning("⚠️ Por favor selecciona al menos una línea para visualizar los datos.")
+        return
+
+    # Aplicar Filtros (Fecha + Línea)
+    mask = (
+        (df["fecha"].dt.date >= ini) & 
+        (df["fecha"].dt.date <= fin) & 
+        (df["linea"].isin(seleccion_lineas))
+    )
     df_f = df.loc[mask]
 
     if df_f.empty:
-        st.warning("Sin datos.")
+        st.warning("Sin datos para los filtros seleccionados.")
         return
 
     # Header
