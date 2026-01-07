@@ -213,4 +213,5 @@ elif df is not None:
         
         st.subheader("Estadísticas por Cluster")
         st.write("Promedio de las características por cada grupo:")
-        st.dataframe(df_ml.groupby('Cluster')[['mean', 'std', 'min', 'max', 'sum']].mean().style.highlight_max(axis=0))s
+
+        st.dataframe(df_ml.groupby('Cluster')[['mean', 'std', 'min', 'max', 'sum']].mean().style.highlight_max(axis=0))
