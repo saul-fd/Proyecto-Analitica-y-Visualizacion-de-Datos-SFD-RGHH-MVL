@@ -82,7 +82,7 @@ def render_metrics_centered(df):
     items = []
     # Sistema
     val_sys = df["afluencia"].sum() / dias
-    items.append({"label": "Sistema Total", "val": val_sys, "img": "ícono-MB.png", "color": "#333"})
+    items.append({"label": "Sistema Total", "val": val_sys, "img": "ícono-MB.png", "color": "#333", "is_sys": True})
     
     # Líneas
     df_l = df.groupby("linea")["afluencia"].sum().reset_index()
@@ -126,9 +126,8 @@ def main():
     # --- BARRA LATERAL: NAVEGACIÓN ---
     st.sidebar.header("Navegación")
     
-    # Usamos st.page_link (Disponible en Streamlit >= 1.31)
-    # Esto crea botones directos a tus otras páginas
-    st.sidebar.page_link("app.py", label="🏠 Inicio (General)", use_container_width=True)
+    # CORRECCIÓN: Eliminamos el enlace a "app.py" aquí para evitar el KeyError
+    # Solo mostramos el enlace a las otras páginas
     st.sidebar.page_link("pages/1_Lineas.py", label="🚌 Detalle por Línea", use_container_width=True)
     
     st.sidebar.divider()
@@ -143,29 +142,18 @@ def main():
 
     if 'linea' in df.columns: df['linea'] = df['linea'].apply(normalizar_linea)
 
-    # --- SIDEBAR: FILTROS ---
+    # --- FILTROS ---
     st.sidebar.header("Filtros")
     
-    # 1. Restricción de Fechas (Hardcoded)
+    # 1. Restricción de Fechas
     MIN_FECHA = datetime.date(2021, 1, 1)
     MAX_FECHA = datetime.date(2025, 11, 30)
     
-    # Asegurar que los valores por defecto estén dentro del rango permitido
     default_start = max(df["fecha"].min().date(), MIN_FECHA)
     default_end = min(df["fecha"].max().date(), MAX_FECHA)
     
-    ini = st.sidebar.date_input(
-        "Fecha Inicio", 
-        value=default_start, 
-        min_value=MIN_FECHA, 
-        max_value=MAX_FECHA
-    )
-    fin = st.sidebar.date_input(
-        "Fecha Fin", 
-        value=default_end, 
-        min_value=MIN_FECHA, 
-        max_value=MAX_FECHA
-    )
+    ini = st.sidebar.date_input("Fecha Inicio", value=default_start, min_value=MIN_FECHA, max_value=MAX_FECHA)
+    fin = st.sidebar.date_input("Fecha Fin", value=default_end, min_value=MIN_FECHA, max_value=MAX_FECHA)
     
     st.sidebar.divider()
 
@@ -214,7 +202,7 @@ def main():
 
     # --- SECCIÓN 3: ANÁLISIS DE TIPO DE PAGO ---
     st.markdown("---")
-    st.subheader("Análisis por Tipo de Pago")
+    st.subheader("💳 Análisis por Tipo de Pago")
     
     if "tipo_pago" in df_f.columns:
         col_pago1, col_pago2 = st.columns(2)
@@ -235,7 +223,6 @@ def main():
         with col_pago2:
             st.markdown("**Tipo de Pago por Línea**")
             df_pago_linea = df_f.groupby(["linea", "tipo_pago"])["afluencia"].sum().reset_index()
-            # Gráfico de barras apiladas al 100% para facilitar comparación
             fig_pago_bar = px.bar(
                 df_pago_linea, 
                 x="linea", 
@@ -252,5 +239,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
