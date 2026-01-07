@@ -1,24 +1,74 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-from sklearn.decomposition import PCA
-from sklearn.preprocessing import StandardScaler
-from sklearn.cluster import KMeans
-from sklearn.metrics import silhouette_score
+import os
+import datetime
 from utils import cargar_datos
 
-def show_correlacion():
+# --- RECURSOS ---
+IMAGENES = {
+    "Línea 1": "MB-1.png", "Línea 2": "MB-2.png", "Línea 3": "MB-3.png",
+    "Línea 4": "MB-4.png", "Línea 5": "MB-5.png", "Línea 6": "MB-6.png",
+    "Línea 7": "MB-7.png", "Emergente": "ícono-MB.png"
+}
+COLOR_MAP = {
+    'Línea 1': '#B5261E', 'Línea 2': '#6A1B9A', 'Línea 3': '#7CB342',
+    'Línea 4': '#EF6C00', 'Línea 5': '#0288D1', 'Línea 6': '#D81B60',
+    'Línea 7': '#2E7D32', 'Emergente': '#616161'
+}
+
+def get_img_path(filename):
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    root_dir = os.path.dirname(current_dir)
+    paths = [
+        os.path.join(root_dir, "imagenes", filename),
+        os.path.join(root_dir, filename)
+    ]
+    for p in paths:
+        if os.path.exists(p): return p
+    return None
+
+def normalizar_linea(texto):
+    if not isinstance(texto, str): return str(texto)
+    t = texto.strip().title()
+    if "Linea" in t and "Línea" not in t: t = t.replace("Linea", "Línea")
+    return t
+
+def render_line_metrics(df, linea_sel):
+    dias = df["fecha"].nunique() or 1
+    total = df["afluencia"].sum()
+    promedio = total / dias
+    maximo = df["afluencia"].max()
+    
+    nombre_norm = normalizar_linea(linea_sel)
+    img_file = IMAGENES.get(nombre_norm, "ícono-MB.png")
+    path = get_img_path(img_file)
+    
+    c_img, c_kpi1, c_kpi2, c_kpi3 = st.columns([1, 1, 1, 1])
+    
+    with c_img:
+        if path: st.image(path, width=70)
+        else: st.markdown(f"**{linea_sel}**")
+        
+    with c_kpi1:
+        st.markdown(f'<div class="metric-value">{total:,.0f}</div><div class="metric-label">Viajes Totales</div>', unsafe_allow_html=True)
+    with c_kpi2:
+        st.markdown(f'<div class="metric-value">{promedio:,.0f}</div><div class="metric-label">Promedio Diario</div>', unsafe_allow_html=True)
+    with c_kpi3:
+        st.markdown(f'<div class="metric-value">{maximo:,.0f}</div><div class="metric-label">Pico Máximo</div>', unsafe_allow_html=True)
+
+# --- FUNCIÓN PRINCIPAL DE LA VISTA ---
+def show_lineas():
     # Estilos CSS
     st.markdown("""
     <style>
-        .stMetric { background-color: #f0f2f6; padding: 10px; border-radius: 5px; }
+        [data-testid="column"] { text-align: center; display: flex; flex-direction: column; align-items: center; }
+        .metric-value { font-size: 26px; font-weight: 800; color: #ffffff; margin-top: 5px; text-shadow: 0px 2px 4px rgba(0,0,0,0.8); }
+        .metric-label { font-size: 12px; font-weight: 700; color: #e0e0e0; text-transform: uppercase; margin-top: 2px; }
     </style>
     """, unsafe_allow_html=True)
 
-    st.title("Correlacion, PCA y Clustering")
-    st.markdown("""
-    Este modulo unifica el analisis de relaciones lineales (Pearson) con la segmentacion automatica (Clustering).
-    """)
+    st.title("Análisis Detallado por Línea")
 
     try:
         df = cargar_datos()
@@ -26,145 +76,89 @@ def show_correlacion():
         st.error(f"Error cargando datos: {e}")
         return
 
-    # ==============================================================================
-    # 1. ANALISIS DE CORRELACION (PEARSON)
-    # ==============================================================================
-    st.header("1. Matriz de Correlacion y Mapa de Calor")
-    st.markdown("Identifica visualmente que lineas tienen comportamientos similares.")
+    if 'linea' in df.columns: df['linea'] = df['linea'].apply(normalizar_linea)
 
-    # Pivoteamos: Filas=Fechas, Columnas=Lineas
-    df_pivot = df.pivot_table(index="fecha", columns="linea", values="afluencia", aggfunc="sum").fillna(0)
-
-    # --- A) MAPA DE CALOR (HEATMAP) ---
-    corr_matrix = df_pivot.corr(method='pearson')
+    # --- FILTROS ---
+    st.sidebar.header("Configuración")
     
-    fig_heat = px.imshow(
-        corr_matrix,
-        text_auto=".2f",
-        aspect="auto",
-        color_continuous_scale="RdBu_r", # Escala Rojo-Azul
-        origin="lower",
-        title="Mapa de Calor de Correlaciones (Pearson)"
-    )
-    st.plotly_chart(fig_heat, use_container_width=True)
-
-    # --- B) COMPARATIVA DIRECTA (SCATTER) ---
-    st.subheader("Comparativa Directa entre Lineas")
-    col1, col2 = st.columns(2)
-    with col1:
-        x_axis = st.selectbox("Eje X", df_pivot.columns, index=0)
-    with col2:
-        y_axis = st.selectbox("Eje Y", df_pivot.columns, index=1)
-        
-    fig_scatter = px.scatter(
-        df_pivot, x=x_axis, y=y_axis, 
-        trendline="ols",
-        opacity=0.5,
-        title=f"Dispersion: {x_axis} vs {y_axis}"
-    )
-    fig_scatter.update_traces(marker=dict(size=6, color="#2980b9"), line=dict(color="red"))
-    st.plotly_chart(fig_scatter, use_container_width=True)
+    lineas = sorted(df["linea"].unique())
+    linea_sel = st.sidebar.selectbox("Selecciona una Línea", lineas)
     
-    r2 = df_pivot[x_axis].corr(df_pivot[y_axis])
-    st.info(f"Coeficiente de Correlacion: {r2:.4f}")
-
-    st.divider()
-
-    # ==============================================================================
-    # 2. REDUCCION DE DIMENSIONES (PCA - SERIES DE TIEMPO)
-    # ==============================================================================
-    st.header("2. Mapa de Similitud (PCA Historico)")
-    st.markdown("Este grafico agrupa las lineas segun la similitud de sus curvas de afluencia diarias.")
-
-    # Transponer: Filas=Lineas, Columnas=Fechas
-    X_ts = df_pivot.T 
+    MIN_FECHA, MAX_FECHA = datetime.date(2021, 1, 1), datetime.date(2025, 11, 30)
+    # Ajustamos fechas por defecto para que no salga vacío si el CSV tiene fechas recientes
+    min_csv = df["fecha"].min().date()
+    max_csv = df["fecha"].max().date()
     
-    scaler_ts = StandardScaler()
-    X_ts_scaled = scaler_ts.fit_transform(X_ts)
-
-    pca_ts = PCA(n_components=2)
-    components_ts = pca_ts.fit_transform(X_ts_scaled)
-
-    df_pca_ts = pd.DataFrame(data=components_ts, columns=['PC1', 'PC2'], index=X_ts.index)
-    df_pca_ts["Linea"] = df_pca_ts.index
+    ini = st.sidebar.date_input("Inicio", min_csv, min_value=MIN_FECHA, max_value=MAX_FECHA)
+    fin = st.sidebar.date_input("Fin", max_csv, min_value=MIN_FECHA, max_value=MAX_FECHA)
     
-    var_ts = pca_ts.explained_variance_ratio_.sum() * 100
+    mask = (df["linea"] == linea_sel) & (df["fecha"].dt.date >= ini) & (df["fecha"].dt.date <= fin)
+    df_linea = df.loc[mask]
 
-    fig_pca_ts = px.scatter(
-        df_pca_ts, x='PC1', y='PC2', 
-        text='Linea', 
-        color='Linea',
-        size_max=20,
-        template="plotly_white",
-        title=f"PCA basado en Series de Tiempo (Varianza explicada: {var_ts:.1f}%)"
-    )
-    fig_pca_ts.update_traces(textposition='top center', marker=dict(size=15, line=dict(width=2, color='DarkSlateGrey')))
-    fig_pca_ts.update_layout(showlegend=False)
-    st.plotly_chart(fig_pca_ts, use_container_width=True)
+    if df_linea.empty:
+        st.warning(f"No hay datos para {linea_sel} en las fechas seleccionadas.")
+        return
 
-    st.divider()
+    # --- CONTENIDO ---
+    st.markdown("###")
+    render_line_metrics(df_linea, linea_sel)
+    st.markdown("---")
 
-    # ==============================================================================
-    # 3. SEGMENTACION (CLUSTERING K-MEANS)
-    # ==============================================================================
-    st.header("3. Segmentacion de Lineas (Clustering)")
-    st.markdown("Agrupamiento basado en estadisticas clave (Promedio, Desviacion, Totales).")
+    color_linea = COLOR_MAP.get(normalizar_linea(linea_sel), "#333")
 
-    # Feature Engineering
-    df_features = df.groupby("linea")["afluencia"].agg(
-        promedio_diario="mean",
-        desviacion_estandar="std",
-        total_acumulado="sum",
-        pico_maximo="max"
-    ).reset_index().fillna(0)
+    # 1. EVOLUCIÓN TEMPORAL
+    st.subheader("Evolución de Afluencia")
+    fig_time = px.area(df_linea.groupby("fecha")["afluencia"].sum().reset_index(), x="fecha", y="afluencia")
+    fig_time.update_traces(line_color=color_linea, fillcolor=color_linea)
+    st.plotly_chart(fig_time, use_container_width=True)
 
-    # Escalado
-    features_cols = ["promedio_diario", "desviacion_estandar", "total_acumulado", "pico_maximo"]
-    X_feat = df_features[features_cols]
-    scaler_feat = StandardScaler()
-    X_feat_scaled = scaler_feat.fit_transform(X_feat)
-
-    # Configuracion K (Sidebar)
-    k_clusters = st.sidebar.slider("Numero de Grupos (K-Means)", min_value=2, max_value=6, value=3)
-
-    # Modelo K-Means
-    kmeans = KMeans(n_clusters=k_clusters, random_state=42, n_init=10)
-    clusters = kmeans.fit_predict(X_feat_scaled)
-    df_features["Cluster"] = clusters.astype(str)
-
-    # PCA para visualizar Clusters
-    pca_feat = PCA(n_components=2)
-    components_feat = pca_feat.fit_transform(X_feat_scaled)
+    # 2. DISPERSIÓN (NUEVO BLOQUE CON BOXPLOT)
+    st.markdown("---")
+    st.subheader("📊 Dispersión y Variabilidad")
     
-    df_features["PC1"] = components_feat[:, 0]
-    df_features["PC2"] = components_feat[:, 1]
+    # Preparamos datos para el boxplot (Día de la semana)
+    df_box = df_linea.copy()
+    df_box["dia_num"] = df_box["fecha"].dt.dayofweek
+    dias_map = {0:"Lunes", 1:"Martes", 2:"Miércoles", 3:"Jueves", 4:"Viernes", 5:"Sábado", 6:"Domingo"}
+    df_box["dia_semana"] = df_box["dia_num"].map(dias_map)
+    df_box = df_box.sort_values("dia_num")
 
-    # Visualizacion
-    c_cluster, c_data = st.columns([2, 1])
+    col_box1, col_box2 = st.columns([3, 1])
 
-    with c_cluster:
-        st.subheader("Mapa de Grupos Detectados")
-        fig_cluster = px.scatter(
-            df_features,
-            x="PC1", 
-            y="PC2",
-            color="Cluster",
-            text="linea",
-            size="total_acumulado",
-            hover_data=features_cols,
-            title=f"K-Means (K={k_clusters}) sobre Perfil Estadistico",
-            template="plotly_white"
+    with col_box1:
+        st.markdown("**Variabilidad por Día de la Semana**")
+        fig_box = px.box(
+            df_box, 
+            x="dia_semana", 
+            y="afluencia", 
+            color="dia_semana",
+            color_discrete_sequence=px.colors.qualitative.Pastel,
+            points="outliers" # Muestra solo los puntos atípicos
         )
-        fig_cluster.update_traces(textposition='top center', marker=dict(opacity=0.8, line=dict(width=1, color='DarkSlateGrey')))
-        st.plotly_chart(fig_cluster, use_container_width=True)
+        fig_box.update_layout(template="plotly_white", xaxis_title="", yaxis_title="Afluencia", showlegend=False)
+        st.plotly_chart(fig_box, use_container_width=True)
 
-    with c_data:
-        st.subheader("Metricas")
-        score = silhouette_score(X_feat_scaled, clusters)
-        st.metric("Calidad (Silhouette)", f"{score:.3f}")
-        
-        st.markdown("#### Perfil Promedio")
-        resumen = df_features.groupby("Cluster")[features_cols].mean()
-        st.dataframe(resumen.style.highlight_max(axis=0), use_container_width=True)
+    with col_box2:
+        st.markdown("**Dispersión Total**")
+        fig_box_total = px.box(
+            df_box, 
+            y="afluencia",
+            points="all", # Muestra todos los puntos para ver la densidad
+            color_discrete_sequence=[color_linea]
+        )
+        fig_box_total.update_layout(template="plotly_white", xaxis_title="Periodo", yaxis_title="", showlegend=False)
+        st.plotly_chart(fig_box_total, use_container_width=True)
 
-show_correlacion()
+    # 3. TIPO DE PAGO
+    if "tipo_pago" in df_linea.columns:
+        st.markdown("---")
+        st.subheader("💳 Desglose por Tipo de Pago")
+        c1, c2 = st.columns(2)
+        with c1:
+            df_pay = df_linea.groupby("tipo_pago")["afluencia"].sum().reset_index()
+            fig_pie = px.pie(df_pay, values="afluencia", names="tipo_pago", hole=0.5, color_discrete_sequence=px.colors.qualitative.Pastel)
+            st.plotly_chart(fig_pie, use_container_width=True)
+        with c2:
+            df_pay_time = df_linea.groupby(["fecha", "tipo_pago"])["afluencia"].sum().reset_index()
+            fig_bar = px.bar(df_pay_time, x="fecha", y="afluencia", color="tipo_pago", barmode="stack", color_discrete_sequence=px.colors.qualitative.Pastel)
+            st.plotly_chart(fig_bar, use_container_width=True)
