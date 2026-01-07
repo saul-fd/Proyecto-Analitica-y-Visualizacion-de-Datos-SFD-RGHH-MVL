@@ -55,7 +55,7 @@ def render_line_metrics(df, linea_sel):
     with c_kpi2:
         st.markdown(f'<div class="metric-value">{promedio:,.0f}</div><div class="metric-label">Promedio Diario</div>', unsafe_allow_html=True)
     with c_kpi3:
-        st.markdown(f'<div class="metric-value">{maximo:,.0f}</div><div class="metric-label">Pico Máximo</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="metric-value">{maximo:,.0f}</div><div class="metric-label">Pico Maximo</div>', unsafe_allow_html=True)
 
 # --- FUNCIÓN PRINCIPAL DE LA VISTA ---
 def show_lineas():
@@ -68,7 +68,7 @@ def show_lineas():
     </style>
     """, unsafe_allow_html=True)
 
-    st.title("Análisis Detallado por Línea")
+    st.title("Analisis Detallado por Linea")
 
     try:
         df = cargar_datos()
@@ -79,13 +79,14 @@ def show_lineas():
     if 'linea' in df.columns: df['linea'] = df['linea'].apply(normalizar_linea)
 
     # --- FILTROS ---
-    st.sidebar.header("Configuración")
+    st.sidebar.header("Configuracion")
     
     lineas = sorted(df["linea"].unique())
-    linea_sel = st.sidebar.selectbox("Selecciona una Línea", lineas)
+    linea_sel = st.sidebar.selectbox("Selecciona una Linea", lineas)
     
-    MIN_FECHA, MAX_FECHA = datetime.date(2021, 1, 1), datetime.date(2025, 11, 30)
-    # Ajustamos fechas por defecto para que no salga vacío si el CSV tiene fechas recientes
+    MIN_FECHA = datetime.date(2021, 1, 1)
+    MAX_FECHA = datetime.date(2025, 11, 30)
+    
     min_csv = df["fecha"].min().date()
     max_csv = df["fecha"].max().date()
     
@@ -107,58 +108,67 @@ def show_lineas():
     color_linea = COLOR_MAP.get(normalizar_linea(linea_sel), "#333")
 
     # 1. EVOLUCIÓN TEMPORAL
-    st.subheader("Evolución de Afluencia")
+    st.subheader("Evolucion de Afluencia")
     fig_time = px.area(df_linea.groupby("fecha")["afluencia"].sum().reset_index(), x="fecha", y="afluencia")
     fig_time.update_traces(line_color=color_linea, fillcolor=color_linea)
     st.plotly_chart(fig_time, use_container_width=True)
 
-    # 2. DISPERSIÓN (NUEVO BLOQUE CON BOXPLOT)
     st.markdown("---")
-    st.subheader("📊 Dispersión y Variabilidad")
+    
+    # 2. DISTRIBUCIÓN DE FRECUENCIAS (NUEVO)
+    st.subheader("Distribucion de Frecuencias")
+    st.markdown("Permite observar como se comportan los volumenes de pasajeros (Histograma).")
+    
+    fig_hist = px.histogram(
+        df_linea, 
+        x="afluencia", 
+        nbins=40, 
+        marginal="box", # Boxplot marginal superior
+        title=f"Histograma de Afluencia - {linea_sel}",
+        color_discrete_sequence=[color_linea],
+        opacity=0.75
+    )
+    fig_hist.update_layout(
+        template="plotly_white", 
+        xaxis_title="Cantidad de Pasajeros", 
+        yaxis_title="Frecuencia (Dias)",
+        showlegend=False
+    )
+    st.plotly_chart(fig_hist, use_container_width=True)
+
+    # 3. DISPERSIÓN
+    st.markdown("---")
+    st.subheader("Dispersion y Variabilidad")
     
     # Preparamos datos para el boxplot (Día de la semana)
     df_box = df_linea.copy()
     df_box["dia_num"] = df_box["fecha"].dt.dayofweek
-    dias_map = {0:"Lunes", 1:"Martes", 2:"Miércoles", 3:"Jueves", 4:"Viernes", 5:"Sábado", 6:"Domingo"}
+    dias_map = {0:"Lunes", 1:"Martes", 2:"Miercoles", 3:"Jueves", 4:"Viernes", 5:"Sabado", 6:"Domingo"}
     df_box["dia_semana"] = df_box["dia_num"].map(dias_map)
     df_box = df_box.sort_values("dia_num")
 
     col_box1, col_box2 = st.columns([3, 1])
 
     with col_box1:
-        st.markdown("**Variabilidad por Día de la Semana**")
+        st.markdown("**Variabilidad por Dia de la Semana**")
         fig_box = px.box(
             df_box, 
             x="dia_semana", 
             y="afluencia", 
             color="dia_semana",
             color_discrete_sequence=px.colors.qualitative.Pastel,
-            points="outliers" # Muestra solo los puntos atípicos
+            points="outliers" 
         )
         fig_box.update_layout(template="plotly_white", xaxis_title="", yaxis_title="Afluencia", showlegend=False)
         st.plotly_chart(fig_box, use_container_width=True)
 
     with col_box2:
-        st.markdown("**Dispersión Total**")
+        st.markdown("**Dispersion Total**")
         fig_box_total = px.box(
             df_box, 
             y="afluencia",
-            points="all", # Muestra todos los puntos para ver la densidad
+            points="all", 
             color_discrete_sequence=[color_linea]
         )
         fig_box_total.update_layout(template="plotly_white", xaxis_title="Periodo", yaxis_title="", showlegend=False)
         st.plotly_chart(fig_box_total, use_container_width=True)
-
-    # 3. TIPO DE PAGO
-    if "tipo_pago" in df_linea.columns:
-        st.markdown("---")
-        st.subheader("💳 Desglose por Tipo de Pago")
-        c1, c2 = st.columns(2)
-        with c1:
-            df_pay = df_linea.groupby("tipo_pago")["afluencia"].sum().reset_index()
-            fig_pie = px.pie(df_pay, values="afluencia", names="tipo_pago", hole=0.5, color_discrete_sequence=px.colors.qualitative.Pastel)
-            st.plotly_chart(fig_pie, use_container_width=True)
-        with c2:
-            df_pay_time = df_linea.groupby(["fecha", "tipo_pago"])["afluencia"].sum().reset_index()
-            fig_bar = px.bar(df_pay_time, x="fecha", y="afluencia", color="tipo_pago", barmode="stack", color_discrete_sequence=px.colors.qualitative.Pastel)
-            st.plotly_chart(fig_bar, use_container_width=True)
