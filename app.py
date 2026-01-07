@@ -204,7 +204,7 @@ def main():
 
     # --- SECCIÓN 3: ANÁLISIS DE TIPO DE PAGO ---
     st.markdown("---")
-    st.subheader("💳 Análisis por Tipo de Pago")
+    st.subheader("Análisis por Tipo de Pago")
     
     if "tipo_pago" in df_f.columns:
         col_pago1, col_pago2 = st.columns(2)
@@ -242,3 +242,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
