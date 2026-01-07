@@ -11,7 +11,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- ESTILOS CSS (Centrado Agresivo) ---
+# --- ESTILOS CSS (Fuente Blanca) ---
 st.markdown("""
 <style>
     /* Forzar el centrado de todo el contenido dentro de las columnas */
@@ -29,16 +29,18 @@ st.markdown("""
         text-align: center;
         margin-top: 5px;
     }
+    
+    /* AQUI ESTA EL CAMBIO DE COLOR */
     .metric-value {
         font-size: 22px;
         font-weight: 800;
-        color: #2c3e50;
+        color: #ffffff; /* Blanco Puro */
         line-height: 1.2;
     }
     .metric-label {
         font-size: 11px;
         font-weight: 700;
-        color: #7f8c8d;
+        color: #e0e0e0; /* Gris muy claro para acompañar */
         text-transform: uppercase;
         margin-top: 2px;
     }
@@ -51,7 +53,7 @@ st.markdown("""
     }
     div[data-testid="stImage"] img {
         object-fit: contain;
-        max-height: 60px; /* Control de altura para uniformidad */
+        max-height: 60px;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -176,13 +178,16 @@ def main():
     
     st.sidebar.divider()
 
-    # 2. Filtro Línea (Multiselect)
+    # 2. Filtro Línea (CHECKBOXES)
+    st.sidebar.subheader("Líneas a visualizar")
     lineas_disponibles = sorted(df["linea"].unique())
-    seleccion_lineas = st.sidebar.multiselect(
-        "Filtrar Líneas",
-        options=lineas_disponibles,
-        default=lineas_disponibles # Todas seleccionadas al inicio
-    )
+    seleccion_lineas = []
+
+    # Crear una casilla por cada línea
+    for linea in lineas_disponibles:
+        # Checkbox activado por defecto (value=True)
+        if st.sidebar.checkbox(linea, value=True, key=f"chk_{linea}"):
+            seleccion_lineas.append(linea)
 
     # Validar seleccion
     if not seleccion_lineas:
