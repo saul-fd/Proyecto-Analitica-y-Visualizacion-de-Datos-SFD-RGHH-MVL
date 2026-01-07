@@ -1,30 +1,52 @@
 import streamlit as st
+
+# --- IMPORTACIÓN DE VISTAS (MÓDULOS) ---
 from views.home import show_home
 from views.lineas import show_lineas
-from views.correlacion import show_correlacion
 from views.estadisticas import show_estadisticas
-from views.temporal import show_temporal 
+from views.correlacion import show_correlacion
+from views.temporal import show_temporal
 
-# --- CONFIGURACIÓN GLOBAL ---
-# Se define una sola vez al principio de la app
+# --- CONFIGURACIÓN GLOBAL DE LA PÁGINA ---
+# Esto debe ser lo primero que se ejecute en la app
 st.set_page_config(
     page_title="Tablero Metrobus CDMX",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# --- MENÚ DE NAVEGACIÓN ---
+# --- MENÚ DE NAVEGACIÓN (SIDEBAR) ---
 st.sidebar.title("Navegación")
 
-# Selector simple y robusto
+# Selector de Vistas
 pagina = st.sidebar.radio(
     "Ir a:", 
-    ["Inicio (General)", "Detalle por Línea"],
+    [
+        "Inicio (General)", 
+        "Detalle por Línea", 
+        "Estadística Descriptiva", 
+        "Correlación, PCA y Clustering",
+        "Análisis Espectral (Fourier)"
+    ],
     index=0
 )
 
 st.sidebar.divider()
 
-show_home()
+# --- ENRUTADOR (ROUTER) ---
+# Decide qué función ejecutar según la selección del usuario
 
+if pagina == "Inicio (General)":
+    show_home()
 
+elif pagina == "Detalle por Línea":
+    show_lineas()
+
+elif pagina == "Estadística Descriptiva":
+    show_estadisticas()
+
+elif pagina == "Correlación, PCA y Clustering":
+    show_correlacion()
+
+elif pagina == "Análisis Espectral (Fourier)":
+    show_temporal()
