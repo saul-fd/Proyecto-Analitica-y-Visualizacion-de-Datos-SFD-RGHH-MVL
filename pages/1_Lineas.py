@@ -117,4 +117,4 @@ def show_correlacion():
         Las líneas agrupadas en el mismo cuadrante comparten **tendencias de usuarios, días pico y estacionalidad**.
         """)
 
-show_correlación()
+show_correlacion()
