@@ -2,306 +2,255 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import plotly.express as px
-import plotly.graph_objects as go
 import os
-from scipy.fft import fft, fftfreq
-from sklearn.preprocessing import StandardScaler
-from sklearn.decomposition import PCA
-from sklearn.manifold import MDS
-from sklearn.cluster import KMeans
-from sklearn.metrics import silhouette_score
 
-# --- CONFIGURACIÓN DE LA PÁGINA ---
+# --- CONFIGURACIÓN DE PÁGINA ---
 st.set_page_config(
-    page_title="Sistema de Analítica Metrobús",
+    page_title="MI Movilidad CDMX",
+    page_icon="🚌",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="collapsed"
 )
 
-# --- ESTILOS CSS FORMALES (CORPORATE UI) ---
+# ==========================================
+# ⚙️ CONFIGURACIÓN DE IMÁGENES Y COLORES
+# ==========================================
+# EDITA AQUÍ LOS NOMBRES DE TUS ARCHIVOS DE IMAGEN
+# Asegúrate de que estén en la misma carpeta o en una subcarpeta (ej. "imagenes/")
+DICCIONARIO_IMAGENES = {
+    "Línea 1": "MB-1.png",  # Cambia por el nombre real de tu archivo
+    "Línea 2": "MB-2.png",
+    "Línea 3": "MB-3.png",
+    "Línea 4": "MB-4.png",
+    "Línea 5": "MB-5.png",
+    "Línea 6": "MB-6.png",
+    "Línea 7": "MB-7.png",
+    "Emergente": "MB-Emergente.png"
+}
+
+# Colores oficiales del Metrobús para gráficas y fallbacks
+COLOR_MAP = {
+    'Línea 1': '#B71C1C', # Rojo
+    'Línea 2': '#4A148C', # Morado
+    'Línea 3': '#558B2F', # Verde Oliva
+    'Línea 4': '#E65100', # Naranja
+    'Línea 5': '#0277BD', # Azul
+    'Línea 6': '#EC407A', # Rosa
+    'Línea 7': '#2E7D32', # Verde
+    'Emergente': '#616161' # Gris
+}
+
+# --- ESTILOS CSS (REPLICA VISUAL HTML) ---
 st.markdown("""
 <style>
-    /* Fondo general y fuentes */
-    .reportview-container {
-        background: #f0f2f6;
+    /* Contenedor principal limpio */
+    .main .block-container {
+        padding-top: 2rem;
+        max-width: 95%;
     }
-    h1, h2, h3 {
-        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        color: #2c3e50;
-    }
-    /* Estilo de Tarjetas KPI */
+    
+    /* Tarjetas KPI Superiores */
     .kpi-card {
-        background-color: #ffffff;
-        border-left: 5px solid #2980b9; /* Azul institucional */
-        border-radius: 4px;
+        background-color: white;
+        border-radius: 8px;
         padding: 20px;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+        box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+        text-align: center;
+        border-bottom: 4px solid #00b894; /* Verde institucional */
         margin-bottom: 20px;
     }
     .kpi-value {
         font-size: 28px;
-        font-weight: 600;
-        color: #2c3e50;
-        margin-bottom: 5px;
+        font-weight: 800;
+        color: #2d3436;
+        margin: 5px 0;
     }
     .kpi-label {
-        font-size: 13px;
-        color: #7f8c8d;
+        font-size: 14px;
+        color: #636e72;
         text-transform: uppercase;
-        letter-spacing: 0.5px;
+        font-weight: 600;
     }
-    /* Ajuste de pestañas */
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 10px;
+    
+    /* Estilos para los iconos de las líneas */
+    .line-icon-container {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 10px;
     }
-    .stTabs [data-baseweb="tab"] {
-        height: 50px;
-        white-space: pre-wrap;
-        background-color: #ffffff;
-        border-radius: 4px 4px 0px 0px;
-        gap: 1px;
-        padding-top: 10px;
-        padding-bottom: 10px;
-    }
-    .stTabs [aria-selected="true"] {
-        background-color: #eef2f6;
-        color: #2980b9;
+    .line-badge {
+        width: 60px;
+        height: 60px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
         font-weight: bold;
-        border-top: 3px solid #2980b9;
+        font-size: 24px;
+        box-shadow: 0 3px 6px rgba(0,0,0,0.2);
+    }
+    .line-name {
+        font-size: 12px;
+        color: #636e72;
+        margin-top: 5px;
+        font-weight: 600;
     }
 </style>
 """, unsafe_allow_html=True)
 
-# --- CARGA DE DATOS ---
+# --- FUNCIÓN DE CARGA ---
 @st.cache_data
 def cargar_datos():
-    archivo_csv = "afluencia-mb-2025.csv"
-    
-    if not os.path.exists(archivo_csv):
-        return None, f"Error: No se encontró el archivo '{archivo_csv}' en el directorio raíz."
+    archivo = "afluencia-mb-2025.csv"
+    if not os.path.exists(archivo):
+        return None, f"No se encontró el archivo: {archivo}"
     
     try:
-        df = pd.read_csv(archivo_csv)
-        
-        # Normalización de cabeceras
+        df = pd.read_csv(archivo)
         df.columns = [c.lower().strip() for c in df.columns]
         
-        # Detección y conversión de fechas
+        # Procesamiento de Fechas
         col_fecha = next((c for c in df.columns if 'fecha' in c), None)
         if col_fecha:
             df[col_fecha] = pd.to_datetime(df[col_fecha])
-            # Generación de variables temporales
-            df['mes'] = df[col_fecha].dt.month
-            df['dia_semana_num'] = df[col_fecha].dt.dayofweek
+            # Crear columnas auxiliares para gráficas
+            df['Mes'] = df[col_fecha].dt.month_name(locale='es_ES') if hasattr(df[col_fecha].dt, 'month_name') else df[col_fecha].dt.month
+            df['Mes_Num'] = df[col_fecha].dt.month
         
         return df, None
     except Exception as e:
-        return None, f"Excepción de lectura: {str(e)}"
+        return None, str(e)
 
-# --- COMPONENTES UI ---
-def tarjeta_kpi(col, titulo, valor):
+# --- COMPONENTES VISUALES ---
+
+def mostrar_encabezado_lineas():
+    """Renderiza el carrusel de iconos de líneas en la parte superior"""
+    st.markdown("###") 
+    cols = st.columns(len(DICCIONARIO_IMAGENES))
+    
+    for i, (nombre_linea, nombre_archivo) in enumerate(DICCIONARIO_IMAGENES.items()):
+        if i >= len(cols): break # Evitar desbordamiento
+        
+        with cols[i]:
+            # Verificar si existe imagen en carpeta raiz o 'imagenes/'
+            rutas_posibles = [nombre_archivo, os.path.join("imagenes", nombre_archivo)]
+            imagen_encontrada = None
+            for ruta in rutas_posibles:
+                if os.path.exists(ruta):
+                    imagen_encontrada = ruta
+                    break
+            
+            if imagen_encontrada:
+                st.image(imagen_encontrada, width=70, output_format="PNG")
+            else:
+                # Fallback: Círculo de color si no hay imagen
+                color = COLOR_MAP.get(nombre_linea, "#333")
+                numero = nombre_linea.replace("Línea ", "").replace("Emergente", "E")
+                st.markdown(f"""
+                    <div class="line-icon-container">
+                        <div class="line-badge" style="background-color: {color};">
+                            {numero}
+                        </div>
+                        <div class="line-name">{nombre_linea}</div>
+                    </div>
+                """, unsafe_allow_html=True)
+    st.markdown("---")
+
+def mostrar_kpi(col, titulo, valor, icono):
     col.markdown(f"""
-    <div class="kpi-card">
-        <div class="kpi-value">{valor}</div>
-        <div class="kpi-label">{titulo}</div>
-    </div>
+        <div class="kpi-card">
+            <div style="font-size:24px;">{icono}</div>
+            <div class="kpi-value">{valor}</div>
+            <div class="kpi-label">{titulo}</div>
+        </div>
     """, unsafe_allow_html=True)
 
-def preparar_datos_ml(df, col_agrupacion, col_valor):
-    # Agregación estadística
-    df_grouped = df.groupby(col_agrupacion)[col_valor].agg(['mean', 'std', 'min', 'max', 'sum']).reset_index()
-    features = ['mean', 'std', 'min', 'max', 'sum']
-    
-    # Escalado
-    x = df_grouped.loc[:, features].values
-    scaler = StandardScaler()
-    x_scaled = scaler.fit_transform(x)
-    return df_grouped, x_scaled
+# ==========================================
+# 🚀 EJECUCIÓN PRINCIPAL
+# ==========================================
 
-# --- LÓGICA PRINCIPAL ---
-df, error_msg = cargar_datos()
-
-st.title("Sistema de Análisis de Movilidad | Metrobús CDMX")
-st.markdown("Plataforma de visualización de datos, segmentación y análisis espectral.")
-st.divider()
+df, error = cargar_datos()
 
 if df is not None:
-    # --- BARRA LATERAL (CONFIGURACIÓN) ---
-    st.sidebar.title("Panel de Control")
-    st.sidebar.markdown("---")
+    # 1. MOSTRAR ICONOS DE LÍNEAS
+    mostrar_encabezado_lineas()
     
-    # Selectores de Variables
-    st.sidebar.subheader("Definición de Variables")
-    cols_numericas = df.select_dtypes(include=np.number).columns.tolist()
-    cols_categ = df.select_dtypes(include='object').columns.tolist()
+    st.markdown("<h2 style='text-align: center; color: #2d3436; margin-bottom: 30px;'>Tablero de Control - Afluencia Metrobús</h2>", unsafe_allow_html=True)
+
+    # Detección de columnas
+    col_linea = next((c for c in df.columns if c in ['linea', 'línea', 'corredor']), df.columns[0])
+    col_afluencia = next((c for c in df.select_dtypes(include=np.number).columns if 'afluencia' in c or 'total' in c), df.columns[-1])
     col_fecha = next((c for c in df.columns if 'fecha' in c), None)
 
-    # Fallback si no hay categóricas detectadas
-    if not cols_categ:
-        cols_categ = [c for c in df.columns if c not in cols_numericas]
-
-    col_linea = st.sidebar.selectbox("Dimensión Categórica (Ej. Línea/Estación)", cols_categ, index=0)
-    col_afluencia = st.sidebar.selectbox("Métrica Numérica (Ej. Afluencia)", cols_numericas, index=0)
+    # 2. FILTROS (Sidebar colapsado o Top Bar)
+    c1, c2 = st.columns([3, 1])
+    with c2:
+        lista_lineas = ["Todas"] + sorted(df[col_linea].unique().tolist())
+        filtro_linea = st.selectbox("📍 Filtrar por Línea", lista_lineas)
     
-    # Filtro Temporal
+    # Aplicar Filtro
     df_filtrado = df.copy()
-    if col_fecha:
-        st.sidebar.subheader("Filtro Temporal")
-        min_date = df[col_fecha].min().date()
-        max_date = df[col_fecha].max().date()
-        dates = st.sidebar.date_input("Periodo de Análisis", [min_date, max_date])
-        if len(dates) == 2:
-            df_filtrado = df[(df[col_fecha].dt.date >= dates[0]) & (df[col_fecha].dt.date <= dates[1])]
+    if filtro_linea != "Todas":
+        df_filtrado = df_filtrado[df_filtrado[col_linea] == filtro_linea]
+
+    # 3. TARJETAS KPI (ESTILO HTML)
+    k1, k2, k3, k4 = st.columns(4)
     
-    # --- PESTAÑAS ---
-    tab1, tab2, tab3 = st.tabs(["Tablero General", "Clustering y PCA", "Análisis Espectral"])
+    total = df_filtrado[col_afluencia].sum()
+    promedio = df_filtrado[col_afluencia].mean()
+    maximo = df_filtrado[col_afluencia].max()
+    registros = len(df_filtrado)
+    
+    mostrar_kpi(k1, "Viajes Totales", f"{total:,.0f}", "🚌")
+    mostrar_kpi(k2, "Promedio Diario", f"{promedio:,.0f}", "📊")
+    mostrar_kpi(k3, "Pico Máximo", f"{maximo:,.0f}", "🏆")
+    mostrar_kpi(k4, "Días Analizados", f"{registros}", "📅")
 
-    # 1. TABLERO GENERAL
-    with tab1:
-        st.header("Resumen Ejecutivo")
+    # 4. GRÁFICOS DETALLADOS
+    
+    # Gráfico A: Barras Horizontales (Top Líneas) - Solo visible si no filtramos
+    if filtro_linea == "Todas":
+        st.subheader("📊 Viajes Totales por Línea")
+        df_agrupado = df_filtrado.groupby(col_linea)[col_afluencia].sum().reset_index().sort_values(col_afluencia, ascending=True)
+        # Asignar colores
+        colores = [COLOR_MAP.get(l, '#95a5a6') for l in df_agrupado[col_linea]]
         
-        # KPIs
-        total_afluencia = df_filtrado[col_afluencia].sum()
-        promedio = df_filtrado[col_afluencia].mean()
-        max_val = df_filtrado[col_afluencia].max()
-        registros = len(df_filtrado)
-
-        c1, c2, c3, c4 = st.columns(4)
-        tarjeta_kpi(c1, "Afluencia Total Acumulada", f"{total_afluencia:,.0f}")
-        tarjeta_kpi(c2, "Promedio por Registro", f"{promedio:,.2f}")
-        tarjeta_kpi(c3, "Valor Máximo Registrado", f"{max_val:,.0f}")
-        tarjeta_kpi(c4, "Volumen de Datos (Filas)", f"{registros:,.0f}")
-
-        # Gráficos
-        col_izq, col_der = st.columns([2, 1])
-        
-        with col_izq:
-            st.subheader("Evolución Temporal")
-            if col_fecha:
-                df_tiempo = df_filtrado.groupby(col_fecha)[col_afluencia].sum().reset_index()
-                fig_line = px.line(df_tiempo, x=col_fecha, y=col_afluencia)
-                fig_line.update_layout(template="plotly_white", xaxis_title="Fecha", yaxis_title="Afluencia")
-                fig_line.update_traces(line_color='#2980b9')
-                st.plotly_chart(fig_line, use_container_width=True)
-            else:
-                st.info("No se detectó columna de fecha para la serie temporal.")
-
-        with col_der:
-            st.subheader("Ranking por Categoría")
-            df_rank = df_filtrado.groupby(col_linea)[col_afluencia].sum().nlargest(10).reset_index().sort_values(col_afluencia, ascending=True)
-            fig_bar = px.bar(df_rank, x=col_afluencia, y=col_linea, orientation='h')
-            fig_bar.update_layout(template="plotly_white", xaxis_title="Total", yaxis_title="")
-            fig_bar.update_traces(marker_color='#34495e')
-            st.plotly_chart(fig_bar, use_container_width=True)
-
-    # 2. CLUSTERING
-    with tab2:
-        st.header("Segmentación Multivariable (Clustering)")
-        st.markdown("Agrupamiento no supervisado basado en el perfil estadístico de cada elemento.")
-        
-        df_ml, matrix_scaled = preparar_datos_ml(df_filtrado, col_linea, col_afluencia)
-        
-        col_params, col_plot = st.columns([1, 3])
-        
-        with col_params:
-            st.markdown("#### Configuración del Modelo")
-            k = st.slider("Número de Clusters (K)", 2, 10, 3)
-            algo_red = st.selectbox("Método de Proyección", ["PCA (Lineal)", "MDS (Distancia)"])
+        fig_bar = px.bar(df_agrupado, x=col_afluencia, y=col_linea, orientation='h', text_auto='.3s')
+        fig_bar.update_layout(template="plotly_white", height=400, xaxis_title="Total de Viajes", yaxis_title="")
+        fig_bar.update_traces(marker_color=colores, textfont_size=12)
+        st.plotly_chart(fig_bar, use_container_width=True)
+    
+    # Gráficos B y C: Evolución y Mensual
+    row2_c1, row2_c2 = st.columns([2, 1])
+    
+    with row2_c1:
+        st.subheader("📈 Tendencia Diaria")
+        if col_fecha:
+            df_tiempo = df_filtrado.groupby(col_fecha)[col_afluencia].sum().reset_index()
+            # Color dinámico
+            color_linea = COLOR_MAP.get(filtro_linea, "#2d3436") if filtro_linea != "Todas" else "#0984e3"
             
-            # K-Means
-            kmeans = KMeans(n_clusters=k, random_state=42, n_init=10)
-            clusters = kmeans.fit_predict(matrix_scaled)
-            df_ml['Cluster_ID'] = clusters.astype(str)
-            
-            sil = silhouette_score(matrix_scaled, clusters)
-            st.metric("Coeficiente de Silhouette", f"{sil:.3f}", help="Medida de cohesión y separación (Máx 1.0)")
-
-        with col_plot:
-            # Reducción
-            if algo_red.startswith("PCA"):
-                model = PCA(n_components=2)
-                coords = model.fit_transform(matrix_scaled)
-                label_x, label_y = "Componente Principal 1", "Componente Principal 2"
-            else:
-                model = MDS(n_components=2, normalized_stress='auto', random_state=42)
-                coords = model.fit_transform(matrix_scaled)
-                label_x, label_y = "Dimensión 1", "Dimensión 2"
-
-            df_viz = pd.DataFrame(coords, columns=['x', 'y'])
-            df_viz['Cluster'] = df_ml['Cluster_ID']
-            df_viz['Etiqueta'] = df_ml[col_linea]
-            
-            fig_clus = px.scatter(
-                df_viz, x='x', y='y', color='Cluster', 
-                hover_name='Etiqueta', 
-                title=f"Distribución de Clusters ({algo_red})",
-                template="plotly_white",
-                color_discrete_sequence=px.colors.qualitative.G10
-            )
-            fig_clus.update_layout(xaxis_title=label_x, yaxis_title=label_y)
-            st.plotly_chart(fig_clus, use_container_width=True)
-
-    # 3. ESPECTRAL
-    with tab3:
-        st.header("Análisis Espectral (Transformada de Fourier)")
-        st.markdown("Detección de ciclicidad y estacionalidad en la serie temporal mediante descomposición en el dominio de la frecuencia.")
-
-        if 'dia_semana_num' in df.columns:
-            # Preparación de señal promedio semanal
-            df_week = df_filtrado.groupby('dia_semana_num')[col_afluencia].mean().sort_index()
-            
-            # Simulación
-            col_sim, col_fft = st.columns([1, 1])
-            with col_sim:
-                st.subheader("Señal Sintética (Patrón Semanal)")
-                n_weeks = st.slider("Ciclos a simular", 4, 52, 10)
-                signal = np.tile(df_week.values, n_weeks)
-                
-                fig_sig = px.line(y=signal, title="Serie Temporal Reconstruida")
-                fig_sig.update_layout(template="plotly_white", xaxis_title="Días", yaxis_title="Magnitud Promedio")
-                st.plotly_chart(fig_sig, use_container_width=True)
-            
-            with col_fft:
-                st.subheader("Espectrograma de Frecuencia")
-                # FFT
-                N = len(signal)
-                yf = fft(signal)
-                xf = fftfreq(N, d=1)[:N//2]
-                magnitude = 2.0/N * np.abs(yf[0:N//2])
-                
-                # Excluir DC component (freq 0)
-                mask = xf > 0.01
-                xf_plot = xf[mask]
-                mag_plot = magnitude[mask]
-                
-                fig_fft = px.bar(x=xf_plot, y=mag_plot)
-                fig_fft.update_layout(
-                    title="Densidad Espectral de Potencia",
-                    xaxis_title="Frecuencia (1/días)",
-                    yaxis_title="Amplitud",
-                    template="plotly_white",
-                    xaxis_range=[0, 0.5]
-                )
-                
-                # Detección de picos
-                threshold = np.max(mag_plot) * 0.3
-                peaks_idx = np.where(mag_plot > threshold)[0]
-                for p in peaks_idx:
-                    freq_val = xf_plot[p]
-                    period = 1 / freq_val
-                    fig_fft.add_annotation(
-                        x=freq_val, y=mag_plot[p],
-                        text=f"T={period:.1f}d",
-                        showarrow=True, arrowhead=2
-                    )
-                
-                st.plotly_chart(fig_fft, use_container_width=True)
-            
-            st.info("Nota Técnica: Un periodo (T) de 7.0 días confirma una estacionalidad semanal fuerte. Valores cercanos a 3.5 indican sub-ciclos de media semana.")
-            
+            fig_line = px.area(df_tiempo, x=col_fecha, y=col_afluencia)
+            fig_line.update_layout(template="plotly_white", height=350, margin=dict(t=20, b=20, l=20, r=20))
+            fig_line.update_traces(line_color=color_linea, fillcolor=color_linea)
+            st.plotly_chart(fig_line, use_container_width=True)
         else:
-            st.warning("No es posible realizar el análisis espectral: Datos temporales insuficientes.")
+            st.warning("No hay columna de fecha para mostrar tendencia.")
+            
+    with row2_c2:
+        st.subheader("📅 Comportamiento Mensual")
+        if 'Mes' in df_filtrado.columns:
+            df_mes = df_filtrado.groupby(['Mes_Num', 'Mes'])[col_afluencia].sum().reset_index().sort_values('Mes_Num')
+            
+            fig_mes = px.bar(df_mes, x='Mes', y=col_afluencia)
+            fig_mes.update_layout(template="plotly_white", height=350, margin=dict(t=20, b=20, l=20, r=20))
+            fig_mes.update_traces(marker_color="#00b894")
+            st.plotly_chart(fig_mes, use_container_width=True)
 
 else:
-    st.error(f"Error Crítico: {error_msg}")
-    st.markdown("Verifique la ubicación del archivo fuente 'afluencia-mb-2025.csv'.")
+    # Pantalla de Error / Carga inicial
+    st.error("⚠️ Archivo de datos no encontrado.")
+    st.info(f"Por favor coloca el archivo CSV en la carpeta del proyecto. {error if error else ''}")
