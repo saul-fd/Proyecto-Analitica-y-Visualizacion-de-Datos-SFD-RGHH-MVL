@@ -123,6 +123,16 @@ def render_metrics_centered(df):
 
 # --- APP PRINCIPAL ---
 def main():
+    # --- BARRA LATERAL: NAVEGACIÓN ---
+    st.sidebar.header("Navegación")
+    
+    # Usamos st.page_link (Disponible en Streamlit >= 1.31)
+    # Esto crea botones directos a tus otras páginas
+    st.sidebar.page_link("app.py", label="🏠 Inicio (General)", use_container_width=True)
+    st.sidebar.page_link("pages/1_Lineas.py", label="🚌 Detalle por Línea", use_container_width=True)
+    
+    st.sidebar.divider()
+
     st.title("Tablero General de Afluencia")
 
     try:
@@ -242,4 +252,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
