@@ -25,15 +25,6 @@ pagina = st.sidebar.radio(
 
 st.sidebar.divider()
 
-# --- CONTROLADOR DE VISTAS ---
-if pagina == "Inicio (General)":
-    show_home()
-elif pagina == "Detalle por Línea":
-    show_lineas()
-elif pagina == "Estadística Descriptiva":
-    show_estadisticas()
-elif pagina == "Correlación y PCA":
-    show_correlacion()
-elif pagina == "Análisis Espectral (Fourier)": 
-    show_temporal()
+show_home()
+
 
