@@ -3,7 +3,6 @@ import streamlit as st
 # --- IMPORTACIÓN DE VISTAS (MÓDULOS) ---
 from views.home import show_home
 from views.lineas import show_lineas
-from views.estadisticas import show_estadisticas
 from views.correlacion import show_correlacion
 from views.temporal import show_temporal
 
@@ -42,11 +41,9 @@ if pagina == "Inicio (General)":
 elif pagina == "Detalle por Línea":
     show_lineas()
 
-elif pagina == "Estadística Descriptiva":
-    show_estadisticas()
-
 elif pagina == "Correlación, PCA y Clustering":
     show_correlacion()
 
 elif pagina == "Análisis Espectral (Fourier)":
     show_temporal()
+
