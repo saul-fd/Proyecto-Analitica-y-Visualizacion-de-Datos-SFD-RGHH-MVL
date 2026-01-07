@@ -23,7 +23,6 @@ pagina = st.sidebar.radio(
     [
         "Inicio (General)", 
         "Detalle por Línea", 
-        "Estadística Descriptiva", 
         "Correlación, PCA y Clustering",
         "Análisis Espectral (Fourier)"
     ],
@@ -46,4 +45,5 @@ elif pagina == "Correlación, PCA y Clustering":
 
 elif pagina == "Análisis Espectral (Fourier)":
     show_temporal()
+
 
