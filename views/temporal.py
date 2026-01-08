@@ -6,7 +6,7 @@ from scipy.fft import fft, fftfreq
 from utils import cargar_datos
 
 def show_temporal():
-    # Estilos CSS (Limpio, sin emojis)
+    # Estilos CSS 
     st.markdown("""
     <style>
         .metric-box {
@@ -19,9 +19,9 @@ def show_temporal():
     </style>
     """, unsafe_allow_html=True)
 
-    st.title("Analisis Espectral (Transformada de Fourier)")
+    st.title("Analisis Temporal")
     st.markdown("""
-    Este modulo descompone la serie de tiempo para encontrar **patrones ciclicos repetitivos**.
+    Este modulo muestra la serie de tiempo para encontrar **patrones repetitivos**.
     """)
 
     try:
